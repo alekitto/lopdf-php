@@ -1,0 +1,248 @@
+name: Build
+on: [push]
+
+permissions:
+  contents: write
+
+env:
+  EXTENSION_NAME: lopdf
+
+jobs:
+  tests:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        php-version: [ "8.3" ]
+        clang: [ "14" ]
+        target: [ "x86_64-unknown-linux-gnu" ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Cache cargo and LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ${{ runner.temp }}/llvm-${{ matrix.clang }}
+          key: ${{ matrix.php-version }}-test
+
+      - name: Setup LLVM & Clang
+        id: clang
+        if: runner.os == 'Linux'
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ matrix.clang }}
+          directory: ${{ runner.temp }}/llvm-${{ matrix.clang }}
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+
+      - name: Configure Clang
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ matrix.clang }}/lib" >> $GITHUB_ENV
+          echo "LLVM_VERSION=${{ steps.clang.outputs.version }}" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ matrix.clang }}/bin/llvm-config" >> $GITHUB_ENV
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          tools: php-config
+
+      - name: Install latest Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          source $HOME/.cargo/env
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+
+      - name: Build module
+        run: |
+          phpize
+          cargo build --target ${{ matrix.target }} --lib
+          cargo test --target ${{ matrix.target }}
+
+      - name: Run PHP Test
+        run: NO_INTERACTION=1 php run-tests.php -n -d extension=target/${{ matrix.target }}/debug/lib${{ env.EXTENSION_NAME }}.so
+
+  get-win-extension-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.extension-matrix.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Get the extension matrix
+        id: extension-matrix
+        uses: php/php-windows-builder/extension-matrix@v1
+        with:
+          php-version-list: '8.1,8.2,8.3,8.4'
+          arch-list: 'x64'
+
+  build-windows:
+    needs: [tests, get-win-extension-matrix]
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix: ${{fromJson(needs.get-win-extension-matrix.outputs.matrix)}}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache cargo and LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ${{ runner.temp }}/llvm-${{ matrix.clang }}
+          key: ${{ matrix.php-version }}-win-${{ matrix.arch }}-${{ matrix.ts }}-stable-build
+
+      - name: Install latest Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          #source $HOME/.cargo/env
+          rustup default nightly
+        shell: bash
+
+      - name: Build the extension
+        uses: php/php-windows-builder/extension@v1
+        with:
+          php-version: ${{ matrix.php-version }}
+          run-tests: 'false'
+          arch: ${{ matrix.arch }}
+          ts: ${{ matrix.ts }}
+
+  build-nix:
+    runs-on: ${{ matrix.os }}
+    needs: tests
+    strategy:
+      matrix:
+        clang: [ "14" ]
+        php-version: [ "8.1", "8.2", "8.3", "8.4" ]
+        target: [ aarch64-apple-darwin, x86_64-apple-darwin, x86_64-unknown-linux-gnu, x86_64-unknown-linux-musl, aarch64-unknown-linux-gnu ]
+        phpts: [ "nts", "ts" ]
+        include:
+          - { rust_channel: stable }
+          - { target: aarch64-apple-darwin, os: macos-latest }
+          - { target: x86_64-apple-darwin, os: macos-latest }
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-22.04 }
+          - { target: x86_64-unknown-linux-musl, os: ubuntu-22.04 }
+          - { target: aarch64-unknown-linux-gnu, os: ubuntu-22.04 }
+        exclude:
+          - { target: aarch64-apple-darwin, phpts: ts }
+          - { target: x86_64-apple-darwin, phpts: ts }
+          - { target: x86_64-unknown-linux-gnu, phpts: ts }
+          - { target: aarch64-unknown-linux-gnu, phpts: ts }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Cache cargo and LLVM and Clang
+        id: cache-llvm
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+            ${{ runner.temp }}/llvm-${{ matrix.clang }}
+          key: ${{ matrix.php-version }}-${{ matrix.target }}-${{ matrix.clang }}-${{ matrix.phpts }}-${{ matrix.rust_channel }}-build
+
+      - name: Setup LLVM & Clang
+        id: clang
+        if: runner.os == 'Linux'
+        uses: KyleMayes/install-llvm-action@v2
+        with:
+          version: ${{ matrix.clang }}
+          directory: ${{ runner.temp }}/llvm-${{ matrix.clang }}
+          cached: ${{ steps.cache-llvm.outputs.cache-hit }}
+
+      - name: Configure Clang
+        if: runner.os == 'Linux'
+        run: |
+          echo "LIBCLANG_PATH=${{ runner.temp }}/llvm-${{ matrix.clang }}/lib" >> $GITHUB_ENV
+          echo "LLVM_VERSION=${{ steps.clang.outputs.version }}" >> $GITHUB_ENV
+          echo "LLVM_CONFIG_PATH=${{ runner.temp }}/llvm-${{ matrix.clang }}/bin/llvm-config" >> $GITHUB_ENV
+
+      - name: Install latest Rust toolchain
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+          #source $HOME/.cargo/env
+          rustup default ${{ matrix.rust_channel }}
+          rustup target add ${{ matrix.target }}
+        shell: bash
+
+      - name: Setup PHP with PECL extension
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php-version }}
+          tools: php-config
+        env:
+          phpts: ${{ matrix.phpts }}
+
+      - name: OS Specific Configuration - Linux
+        if: runner.os == 'Linux'
+        run: |
+          echo "OUTPUT_FILE=lib${{ env.EXTENSION_NAME }}.so" >> $GITHUB_ENV
+          echo "LIB_EXT=so" >> $GITHUB_ENV
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu libc6-dev-arm64-cross musl-tools musl-dev
+
+      - name: OS Specific Configuration - macOS
+        if: runner.os == 'macOS'
+        run: |
+          echo "OUTPUT_FILE=lib${{ env.EXTENSION_NAME }}.dylib" >> $GITHUB_ENV
+          echo "LIB_EXT=so" >> $GITHUB_ENV
+
+      - name: Build module
+        run: |
+          cargo build --release --target ${{ matrix.target }} --lib
+
+      - name: Rename file
+        run: mv target/${{ matrix.target }}/release/${{ env.OUTPUT_FILE }} target/php${{ matrix.php-version }}-${{ matrix.phpts }}-${{ matrix.target }}-${{ env.EXTENSION_NAME }}.${{ env.LIB_EXT }}
+        shell: bash
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: php${{ matrix.php-version }}-${{ matrix.phpts }}-${{ matrix.target }}
+          path: target/php${{ matrix.php-version }}-${{ matrix.phpts }}-${{ matrix.target }}-${{ env.EXTENSION_NAME }}.${{ env.LIB_EXT }}
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-nix, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'release'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Cargo Version
+        id: cargo_version
+        run: |
+          VERSION=$(grep '^version =' Cargo.toml | head -n 1 | sed 's/.*"\(.*\)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: 'true'
+
+      - name: Create release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "artifacts/php*"

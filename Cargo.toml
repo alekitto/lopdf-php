@@ -1,0 +1,15 @@
+[package]
+name = "php_lopdf"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+name = "lopdf"
+
+[dependencies]
+ext-php-rs = { git = "https://github.com/davidcole1340/ext-php-rs.git" }
+lopdf = "0.36.0"
+
+[profile.release]
+strip = "debuginfo"

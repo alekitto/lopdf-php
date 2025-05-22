@@ -1,0 +1,16 @@
+/autom4te.cache
+/build
+/modules
+/target
+/config.h
+/config.h.in
+/config.log
+/config.nice
+/config.status
+/configure
+/configure.ac
+/libtool
+/Makefile
+/Makefile.fragments
+/Makefile.objects
+/run-tests.php

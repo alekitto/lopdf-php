@@ -1,0 +1,8 @@
+{
+  "name": "kcs/lopdf",
+  "type": "php-ext",
+  "license": "MIT",
+  "php-ext": {
+    "extension-name": "lopdf"
+  }
+}
