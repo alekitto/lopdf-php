@@ -21,8 +21,8 @@
     </lead>
     <date>2025-05-22</date>
     <version>
-        <release>1.0.0</release>
-        <api>1.0.0</api>
+        <release>0.1.0</release>
+        <api>0.1.0</api>
     </version>
     <stability>
         <release>stable</release>
