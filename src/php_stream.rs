@@ -1,7 +1,6 @@
 use ext_php_rs::ffi::{php_stream, php_stream_context, zend_string};
 use std::ffi::{CString, c_char};
-use std::io::Read;
-use std::os::raw::c_int;
+use std::io::{Read, Write};
 use std::ptr;
 
 unsafe extern "C" {
@@ -17,6 +16,17 @@ unsafe extern "C" {
         stream: *mut php_stream,
         buf: *mut ::std::os::raw::c_char,
         count: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+
+    fn _php_stream_write(
+        stream: *mut php_stream,
+        buf: *mut *const ::std::os::raw::c_char,
+        count: ::std::os::raw::c_int,
+    ) -> ::std::os::raw::c_int;
+
+    fn _php_stream_flush(
+        stream: *mut php_stream,
+        closing: ::std::os::raw::c_int,
     ) -> ::std::os::raw::c_int;
 
     fn _php_stream_eof(stream: *mut php_stream) -> bool;
@@ -49,7 +59,7 @@ impl PhpStream {
 
 impl Read for PhpStream {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let buf_len = c_int::try_from(buf.len()).unwrap();
+        let buf_len = ::std::os::raw::c_int::try_from(buf.len()).unwrap();
         let read = unsafe { _php_stream_read(self.0, buf.as_mut_ptr() as *mut c_char, buf_len) };
         if read == -1 {
             if unsafe { _php_stream_eof(self.0) } {
@@ -59,6 +69,28 @@ impl Read for PhpStream {
             }
         } else {
             Ok(usize::try_from(read).unwrap())
+        }
+    }
+}
+
+impl Write for PhpStream {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        let buf_len = ::std::os::raw::c_int::try_from(buf.len()).unwrap();
+        let write =
+            unsafe { _php_stream_write(self.0, buf.as_ptr() as *mut *const c_char, buf_len) };
+        if write == -1 {
+            Err(std::io::Error::other("unable to write stream"))
+        } else {
+            Ok(usize::try_from(write).unwrap())
+        }
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        let flush = unsafe { _php_stream_flush(self.0, 0) };
+        if flush == -1 {
+            Err(std::io::Error::other("unable to write stream"))
+        } else {
+            Ok(())
         }
     }
 }

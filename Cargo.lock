@@ -489,7 +489,7 @@ dependencies = [
 [[package]]
 name = "ext-php-rs"
 version = "0.13.1"
-source = "git+https://github.com/davidcole1340/ext-php-rs.git#b1f18add71a8988267e92918a25d13b0b92009c8"
+source = "git+https://github.com/alekitto/ext-php-rs.git#e585c57584f15ca5a42a31cb0830dc88ba8103c6"
 dependencies = [
  "anyhow",
  "bindgen",
@@ -508,7 +508,7 @@ dependencies = [
 [[package]]
 name = "ext-php-rs-derive"
 version = "0.10.2"
-source = "git+https://github.com/davidcole1340/ext-php-rs.git#b1f18add71a8988267e92918a25d13b0b92009c8"
+source = "git+https://github.com/alekitto/ext-php-rs.git#e585c57584f15ca5a42a31cb0830dc88ba8103c6"
 dependencies = [
  "anyhow",
  "darling",
@@ -1060,7 +1060,7 @@ checksum = "e3148f5046208a5d56bcfc03053e3ca6334e51da8dfb19b6cdc8b306fae3283e"
 
 [[package]]
 name = "php_lopdf"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "ext-php-rs",
  "lopdf",

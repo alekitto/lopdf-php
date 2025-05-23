@@ -6,6 +6,7 @@ declare(strict_types=1);
 
 namespace LoPdf {
     use LoPdf\Exception\LoadException;
+    use LoPdf\Exception\SaveException;
 
     class Document {
         /**
@@ -21,6 +22,16 @@ namespace LoPdf {
          * @throws LoadException if there's an error while loading the file.
          */
         public static function load(string $contents): self { }
+
+        /**
+         * Saves the PDF file.
+         * If $path is null, the PDF file is returned as string.
+         *
+         * @param string|null $path
+         *
+         * @throws SaveException if there's an error while saving the PDF file.
+         */
+        public function save(string|null $path = null): string|null { }
 
         /**
          * Compress the PDF file.
@@ -45,8 +56,12 @@ namespace LoPdf {
 }
 
 namespace LoPdf\Exception {
-    use Exception;
+    class Exception extends \Exception {
+    }
 
     class LoadException extends Exception {
+    }
+
+    class SaveException extends Exception {
     }
 }

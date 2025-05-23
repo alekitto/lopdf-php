@@ -4,12 +4,16 @@ mod exception;
 mod pdf;
 mod php_stream;
 
-use crate::exception::LoadException;
+use crate::exception::{Exception, LoadException, SaveException};
 use crate::pdf::Document;
 use ext_php_rs::prelude::*;
 
 fn build_module(builder: ModuleBuilder) -> ModuleBuilder {
-    builder.class::<Document>().class::<LoadException>()
+    builder
+        .class::<Document>()
+        .class::<Exception>()
+        .class::<LoadException>()
+        .class::<SaveException>()
 }
 
 #[doc(hidden)]
@@ -107,7 +111,12 @@ mod integration {
     }
 
     #[test]
-    pub fn test_include_external() {
+    pub fn test_load_file() {
         assert!(run_php("0001-load-file.php"));
+    }
+
+    #[test]
+    pub fn test_save_file() {
+        assert!(run_php("0002-save-file.php"));
     }
 }
